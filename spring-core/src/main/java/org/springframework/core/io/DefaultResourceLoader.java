@@ -45,6 +45,12 @@ import org.springframework.util.StringUtils;
  * @see FileSystemResourceLoader
  * @see org.springframework.context.support.ClassPathXmlApplicationContext
  */
+
+/**
+ * DefaultResourceLoader是ResourceLoader的默认实现,
+ * 在使用不带参数的构造函数时，使用的ClassLoader为默认的ClassLoader(一般Thread.currentThread()#getContextClassLoader())
+ * 在使用带参数的构造函数时，可以通过ClassUtils#getDefaultClassLoader()获取
+ */
 public class DefaultResourceLoader implements ResourceLoader {
 
 	@Nullable
@@ -105,6 +111,10 @@ public class DefaultResourceLoader implements ResourceLoader {
 	 * @since 4.3
 	 * @see #getProtocolResolvers()
 	 */
+	/**
+	 * 自定义ProtocolResolver时调用
+	 * @param resolver
+	 */
 	public void addProtocolResolver(ProtocolResolver resolver) {
 		Assert.notNull(resolver, "ProtocolResolver must not be null");
 		this.protocolResolvers.add(resolver);
@@ -144,19 +154,22 @@ public class DefaultResourceLoader implements ResourceLoader {
 	public Resource getResource(String location) {
 		Assert.notNull(location, "Location must not be null");
 
+		//首先，通过ProtocolResolver来加载资源
 		for (ProtocolResolver protocolResolver : this.protocolResolvers) {
 			Resource resource = protocolResolver.resolve(location, this);
 			if (resource != null) {
 				return resource;
 			}
 		}
-
+		//其次，以 / 开头，返回ClassPathContextResource类型的资源
 		if (location.startsWith("/")) {
 			return getResourceByPath(location);
 		}
+		//再次，以classpath:开头，返回ClassPathResource类型的资源
 		else if (location.startsWith(CLASSPATH_URL_PREFIX)) {
 			return new ClassPathResource(location.substring(CLASSPATH_URL_PREFIX.length()), getClassLoader());
 		}
+		//然后，根据是否为文件RUL，是则返回FileUrlResource类型的资源，否则返回UrlResource类型的资源
 		else {
 			try {
 				// Try to parse the location as a URL...
@@ -164,6 +177,7 @@ public class DefaultResourceLoader implements ResourceLoader {
 				return (ResourceUtils.isFileURL(url) ? new FileUrlResource(url) : new UrlResource(url));
 			}
 			catch (MalformedURLException ex) {
+				//最后返回ClassPathContextResource类型的资源
 				// No URL -> resolve as resource path.
 				return getResourceByPath(location);
 			}
