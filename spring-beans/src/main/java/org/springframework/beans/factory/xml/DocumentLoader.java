@@ -42,6 +42,16 @@ public interface DocumentLoader {
 	 * @return the loaded {@link Document document}
 	 * @throws Exception if an error occurs
 	 */
+	/**
+	 *
+	 * @param inputSource 加载Document的Resource资源
+	 * @param entityResolver 解析文件的解析器
+	 * @param errorHandler 处理加载Document对象的过程的错误
+	 * @param validationMode 验证模式
+	 * @param namespaceAware 命名空间支持，如果要提供对XML名称空间的支持，则需true
+	 * @return
+	 * @throws Exception
+	 */
 	Document loadDocument(
 			InputSource inputSource, EntityResolver entityResolver,
 			ErrorHandler errorHandler, int validationMode, boolean namespaceAware)

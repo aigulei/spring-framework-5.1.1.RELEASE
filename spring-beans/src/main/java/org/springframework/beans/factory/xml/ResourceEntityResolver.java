@@ -51,6 +51,7 @@ import org.springframework.lang.Nullable;
  * @see org.springframework.core.io.ResourceLoader
  * @see org.springframework.context.ApplicationContext
  */
+//通过ResourceLoader来解析实体的引用
 public class ResourceEntityResolver extends DelegatingEntityResolver {
 
 	private static final Log logger = LogFactory.getLog(ResourceEntityResolver.class);
@@ -73,12 +74,16 @@ public class ResourceEntityResolver extends DelegatingEntityResolver {
 	@Override
 	@Nullable
 	public InputSource resolveEntity(String publicId, @Nullable String systemId) throws SAXException, IOException {
+		//调用父类的方法，进行解析
 		InputSource source = super.resolveEntity(publicId, systemId);
+		//解析失败，resourceLoader进行解析
 		if (source == null && systemId != null) {
+			//获得resourcePath，即Resource资源地址
 			String resourcePath = null;
 			try {
-				String decodedSystemId = URLDecoder.decode(systemId, "UTF-8");
-				String givenUrl = new URL(decodedSystemId).toString();
+				String decodedSystemId = URLDecoder.decode(systemId, "UTF-8");//使用UTF-8，解码systemId
+				String givenUrl = new URL(decodedSystemId).toString();//转换成URL字符串
+				//解析文件资源的相对路径（相对于系统根路径）
 				String systemRootUrl = new File("").toURI().toURL().toString();
 				// Try relative to resource base if currently in system root.
 				if (givenUrl.startsWith(systemRootUrl)) {
@@ -97,8 +102,11 @@ public class ResourceEntityResolver extends DelegatingEntityResolver {
 				if (logger.isTraceEnabled()) {
 					logger.trace("Trying to locate XML entity [" + systemId + "] as resource [" + resourcePath + "]");
 				}
+				//获得Resource资源
 				Resource resource = this.resourceLoader.getResource(resourcePath);
+				//创建InputSource对象
 				source = new InputSource(resource.getInputStream());
+				//设置publicId和systemId属性
 				source.setPublicId(publicId);
 				source.setSystemId(systemId);
 				if (logger.isDebugEnabled()) {

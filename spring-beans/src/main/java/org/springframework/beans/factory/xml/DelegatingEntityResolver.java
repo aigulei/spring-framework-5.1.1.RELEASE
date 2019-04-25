@@ -13,7 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
+/**
+ * 代理dtd的BeansDtdResolver和xml的schemas的PluggableSchemaResolver
+ */
 package org.springframework.beans.factory.xml;
 
 import java.io.IOException;
@@ -58,6 +60,7 @@ public class DelegatingEntityResolver implements EntityResolver {
 	 * @param classLoader the ClassLoader to use for loading
 	 * (can be {@code null}) to use the default ClassLoader)
 	 */
+	//默认
 	public DelegatingEntityResolver(@Nullable ClassLoader classLoader) {
 		this.dtdResolver = new BeansDtdResolver();
 		this.schemaResolver = new PluggableSchemaResolver(classLoader);
@@ -69,6 +72,7 @@ public class DelegatingEntityResolver implements EntityResolver {
 	 * @param dtdResolver the EntityResolver to resolve DTDs with
 	 * @param schemaResolver the EntityResolver to resolve XML schemas with
 	 */
+	//自定义
 	public DelegatingEntityResolver(EntityResolver dtdResolver, EntityResolver schemaResolver) {
 		Assert.notNull(dtdResolver, "'dtdResolver' is required");
 		Assert.notNull(schemaResolver, "'schemaResolver' is required");
@@ -76,14 +80,24 @@ public class DelegatingEntityResolver implements EntityResolver {
 		this.schemaResolver = schemaResolver;
 	}
 
-
+	/**
+	 * 如果是DTD验证模式，则使用BeanDtdResolver来进行解析
+	 * 如果是XSD验证模式，则使用PluggableSchemaResolver来进行解析
+	 * @param publicId
+	 * @param systemId
+	 * @return
+	 * @throws SAXException
+	 * @throws IOException
+	 */
 	@Override
 	@Nullable
 	public InputSource resolveEntity(String publicId, @Nullable String systemId) throws SAXException, IOException {
 		if (systemId != null) {
+			//DTD模式
 			if (systemId.endsWith(DTD_SUFFIX)) {
 				return this.dtdResolver.resolveEntity(publicId, systemId);
 			}
+			//XSD模式
 			else if (systemId.endsWith(XSD_SUFFIX)) {
 				return this.schemaResolver.resolveEntity(publicId, systemId);
 			}
