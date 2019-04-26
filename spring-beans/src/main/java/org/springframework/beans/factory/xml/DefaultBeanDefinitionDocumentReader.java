@@ -224,17 +224,21 @@ public class DefaultBeanDefinitionDocumentReader implements BeanDefinitionDocume
 	 * from the given resource into the bean factory.
 	 */
 	protected void importBeanDefinitionResource(Element ele) {
+		//<1>获取resource的属性值
 		String location = ele.getAttribute(RESOURCE_ATTRIBUTE);
+		//为空，直接退出
 		if (!StringUtils.hasText(location)) {
-			getReaderContext().error("Resource location must not be empty", ele);
+			getReaderContext().error("Resource location must not be empty", ele);//使用problemReporter报错
 			return;
 		}
-
+		//<2> 解析系统属性，格式如:"${user.dir}"
 		// Resolve system properties: e.g. "${user.dir}"
 		location = getReaderContext().getEnvironment().resolveRequiredPlaceholders(location);
 
+		//实际Resource集合，即import的地址，有哪些Resource
 		Set<Resource> actualResources = new LinkedHashSet<>(4);
 
+		//<3> 判断location是相对路径还是绝对路径
 		// Discover whether the location is an absolute or relative URI
 		boolean absoluteLocation = false;
 		try {
@@ -246,6 +250,7 @@ public class DefaultBeanDefinitionDocumentReader implements BeanDefinitionDocume
 		}
 
 		// Absolute or relative?
+		//<4> 绝对路径
 		if (absoluteLocation) {
 			try {
 				int importCount = getReaderContext().getReader().loadBeanDefinitions(location, actualResources);
@@ -258,17 +263,31 @@ public class DefaultBeanDefinitionDocumentReader implements BeanDefinitionDocume
 						"Failed to import bean definitions from URL location [" + location + "]", ele, ex);
 			}
 		}
+		//<5> 相对路径
+		/**
+		 * 如果是相对路径，则会根据相应的Resource计算出相应的相对路径的Resource对象，然后：
+		 * 若该Resource存在，则调用XmlBeanDefinitionReader#loadBeanDefinitions()方法，进行BeanDefinition加载,
+		 * 否则构造一个绝对location，并调用loadBeanDefinition(String location,Set<Resource> actualResources)方法，
+		 * 与绝对路径过程一致
+		 */
 		else {
 			// No URL -> considering resource location as relative to the current file.
 			try {
 				int importCount;
+				//创建相对地址的Resource
 				Resource relativeResource = getReaderContext().getResource().createRelative(location);
+				//存在
 				if (relativeResource.exists()) {
+					//加载relativeResource中的BeanDefinition们
 					importCount = getReaderContext().getReader().loadBeanDefinitions(relativeResource);
+					//添加到actualResources中
 					actualResources.add(relativeResource);
 				}
+				//不存在
 				else {
+					//获得根路径地址
 					String baseLocation = getReaderContext().getResource().getURL().toString();
+					//添加配置文件地址的Resource到actualResources中，并加载相应的BeanDefiiton们
 					importCount = getReaderContext().getReader().loadBeanDefinitions(
 							StringUtils.applyRelativePath(baseLocation, location), actualResources);
 				}
@@ -284,6 +303,7 @@ public class DefaultBeanDefinitionDocumentReader implements BeanDefinitionDocume
 						"Failed to import bean definitions from relative location [" + location + "]", ele, ex);
 			}
 		}
+		//<6> 解析成功后，进行监听器激活处理
 		Resource[] actResArray = actualResources.toArray(new Resource[0]);
 		getReaderContext().fireImportProcessed(location, actResArray, extractSource(ele));
 	}
@@ -320,10 +340,15 @@ public class DefaultBeanDefinitionDocumentReader implements BeanDefinitionDocume
 	 * and registering it with the registry.
 	 */
 	protected void processBeanDefinition(Element ele, BeanDefinitionParserDelegate delegate) {
+		//进行bean元素解析
+		//<1>如果解析成功，则返回BeanDefinitionHolder对象。而BeanDefinitionHolder为name和alias的BeanDefinition对象
+		//如果解析失败，返回null
 		BeanDefinitionHolder bdHolder = delegate.parseBeanDefinitionElement(ele);
 		if (bdHolder != null) {
+			//<2> 进行自定义标签处理
 			bdHolder = delegate.decorateBeanDefinitionIfRequired(ele, bdHolder);
 			try {
+				//<3> 进行BeanDefinition注册
 				// Register the final decorated instance.
 				BeanDefinitionReaderUtils.registerBeanDefinition(bdHolder, getReaderContext().getRegistry());
 			}
@@ -331,6 +356,7 @@ public class DefaultBeanDefinitionDocumentReader implements BeanDefinitionDocume
 				getReaderContext().error("Failed to register bean definition with name '" +
 						bdHolder.getBeanName() + "'", ele, ex);
 			}
+			//<4>发出响应事件，通知相关的监听器，已完成Bean标签的解析
 			// Send registration event.
 			getReaderContext().fireComponentRegistered(new BeanComponentDefinition(bdHolder));
 		}

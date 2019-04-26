@@ -412,16 +412,20 @@ public class BeanDefinitionParserDelegate {
 	 */
 	@Nullable
 	public BeanDefinitionHolder parseBeanDefinitionElement(Element ele, @Nullable BeanDefinition containingBean) {
+		//<1> 解析id和name属性
 		String id = ele.getAttribute(ID_ATTRIBUTE);
 		String nameAttr = ele.getAttribute(NAME_ATTRIBUTE);
 
+		//<1> 计算别名集合
 		List<String> aliases = new ArrayList<>();
 		if (StringUtils.hasLength(nameAttr)) {
 			String[] nameArr = StringUtils.tokenizeToStringArray(nameAttr, MULTI_VALUE_ATTRIBUTE_DELIMITERS);
 			aliases.addAll(Arrays.asList(nameArr));
 		}
 
+		//<3.1> beanName，优先，使用id
 		String beanName = id;
+		//<3.2> beanName，其次，使用aliases 的第一个
 		if (!StringUtils.hasText(beanName) && !aliases.isEmpty()) {
 			beanName = aliases.remove(0);
 			if (logger.isTraceEnabled()) {
@@ -430,19 +434,24 @@ public class BeanDefinitionParserDelegate {
 			}
 		}
 
+		//<2> 检查beanName的唯一性
 		if (containingBean == null) {
 			checkNameUniqueness(beanName, aliases, ele);
 		}
 
+		//<4> 解析属性，构造AbstractBeanDefinition对象
 		AbstractBeanDefinition beanDefinition = parseBeanDefinitionElement(ele, beanName, containingBean);
 		if (beanDefinition != null) {
+			//<3.3>beanName，再次，使用beanName生成规则
 			if (!StringUtils.hasText(beanName)) {
 				try {
 					if (containingBean != null) {
+						//<3.3>生成唯一的 beanName
 						beanName = BeanDefinitionReaderUtils.generateBeanName(
 								beanDefinition, this.readerContext.getRegistry(), true);
 					}
 					else {
+						//<3.3>生成唯一的beanName
 						beanName = this.readerContext.generateBeanName(beanDefinition);
 						// Register an alias for the plain bean class name, if still possible,
 						// if the generator returned the class name plus a suffix.
@@ -464,6 +473,7 @@ public class BeanDefinitionParserDelegate {
 					return null;
 				}
 			}
+			//<5> 创建BeanDefinitionHolder对象
 			String[] aliasesArray = StringUtils.toStringArray(aliases);
 			return new BeanDefinitionHolder(beanDefinition, beanName, aliasesArray);
 		}
@@ -476,6 +486,7 @@ public class BeanDefinitionParserDelegate {
 	 * within the current level of beans element nesting.
 	 */
 	protected void checkNameUniqueness(String beanName, List<String> aliases, Element beanElement) {
+		//寻找是否beanName已经使用
 		String foundName = null;
 
 		if (StringUtils.hasText(beanName) && this.usedNames.contains(beanName)) {
@@ -484,10 +495,12 @@ public class BeanDefinitionParserDelegate {
 		if (foundName == null) {
 			foundName = CollectionUtils.findFirstMatch(this.usedNames, aliases);
 		}
+		//若已使用，使用problemReporter提示错误
 		if (foundName != null) {
 			error("Bean name '" + foundName + "' is already used in this <beans> element", beanElement);
 		}
 
+		//添加到usedNames集合
 		this.usedNames.add(beanName);
 		this.usedNames.addAll(aliases);
 	}
@@ -502,27 +515,50 @@ public class BeanDefinitionParserDelegate {
 
 		this.parseState.push(new BeanEntry(beanName));
 
+		//解析class属性
 		String className = null;
 		if (ele.hasAttribute(CLASS_ATTRIBUTE)) {
 			className = ele.getAttribute(CLASS_ATTRIBUTE).trim();
 		}
+		//解析parent属性
 		String parent = null;
 		if (ele.hasAttribute(PARENT_ATTRIBUTE)) {
 			parent = ele.getAttribute(PARENT_ATTRIBUTE);
 		}
 
 		try {
+			//创建用于承载属性的AbstractBeanDefinition实例
 			AbstractBeanDefinition bd = createBeanDefinition(className, parent);
 
+			//解析默认bean的各种属性
 			parseBeanDefinitionAttributes(ele, beanName, containingBean, bd);
+			//提取description
 			bd.setDescription(DomUtils.getChildElementValueByTagName(ele, DESCRIPTION_ELEMENT));
 
+			//tips:
+			//下面是一堆解析<bean>......</bean>内部的子元素，
+			//解析出来以后的信息都放到bd的属性中
+
+			//解析元数据<meta />：元数据
 			parseMetaElements(ele, bd);
+
+			//解析lookup-method属性 <lookup-method/>：Spring动态改变bean里方法的实现。
+			//方法执行返回的对象，使用Spring内原有的这类对象替换，通过改变方法返回值来动态改变方法
+			//内部实现为cglib方法，重新生成子类，重写配置的方法和返回对象，达到动态改变的效果
+			//获取器注入，是把一个方法声明为返回某种类型的bean但实际要返回的bean是在配置文件里面配置的。
+			//该方法可以用于设计一些可插拔的功能上，解除程序依赖
 			parseLookupOverrideSubElements(ele, bd.getMethodOverrides());
+
+			//解析replaced-method属性<replaced-method/>：Spring动态改变bean里方法的实现。
+			//需要改变的方法，使用Spring内原有的其他类（需要继承接口org.springframework.beans.factory.support.MethodReplacer）
+			//的逻辑，替换这个方法，通过改变方法执行逻辑来动态改变方法
 			parseReplacedMethodSubElements(ele, bd.getMethodOverrides());
 
+			//解析构造函数参数<constructor-arg/>
 			parseConstructorArgElements(ele, bd);
+			//解析property子元素<property/>
 			parsePropertyElements(ele, bd);
+			//解析qualifier子元素<qualifier/>
 			parseQualifierElements(ele, bd);
 
 			bd.setResource(this.readerContext.getResource());
@@ -645,12 +681,15 @@ public class BeanDefinitionParserDelegate {
 
 	public void parseMetaElements(Element ele, BeanMetadataAttributeAccessor attributeAccessor) {
 		NodeList nl = ele.getChildNodes();
+		//遍历子节点
 		for (int i = 0; i < nl.getLength(); i++) {
 			Node node = nl.item(i);
-			if (isCandidateElement(node) && nodeNameEquals(node, META_ELEMENT)) {
+			//<meta key="special-data" value="sprecial stragey"/>
+			if (isCandidateElement(node) && nodeNameEquals(node, META_ELEMENT)) {//标签名为meta
 				Element metaElement = (Element) node;
-				String key = metaElement.getAttribute(KEY_ATTRIBUTE);
-				String value = metaElement.getAttribute(VALUE_ATTRIBUTE);
+				String key = metaElement.getAttribute(KEY_ATTRIBUTE); //key
+				String value = metaElement.getAttribute(VALUE_ATTRIBUTE); //value
+				//创建BeanMetadataAttribute对象
 				BeanMetadataAttribute attribute = new BeanMetadataAttribute(key, value);
 				attribute.setSource(extractSource(metaElement));
 				attributeAccessor.addMetadataAttribute(attribute);
@@ -725,14 +764,17 @@ public class BeanDefinitionParserDelegate {
 	 */
 	public void parseLookupOverrideSubElements(Element beanEle, MethodOverrides overrides) {
 		NodeList nl = beanEle.getChildNodes();
+		//遍历子节点
 		for (int i = 0; i < nl.getLength(); i++) {
 			Node node = nl.item(i);
-			if (isCandidateElement(node) && nodeNameEquals(node, LOOKUP_METHOD_ELEMENT)) {
+			if (isCandidateElement(node) && nodeNameEquals(node, LOOKUP_METHOD_ELEMENT)) {//标签名为lookup-method
 				Element ele = (Element) node;
-				String methodName = ele.getAttribute(NAME_ATTRIBUTE);
-				String beanRef = ele.getAttribute(BEAN_ELEMENT);
+				String methodName = ele.getAttribute(NAME_ATTRIBUTE);//name
+				String beanRef = ele.getAttribute(BEAN_ELEMENT);//bean
+				//创建LookupOverride对象
 				LookupOverride override = new LookupOverride(methodName, beanRef);
 				override.setSource(extractSource(ele));
+				//添加到MethodOverrides中
 				overrides.addOverride(override);
 			}
 		}
@@ -743,23 +785,27 @@ public class BeanDefinitionParserDelegate {
 	 */
 	public void parseReplacedMethodSubElements(Element beanEle, MethodOverrides overrides) {
 		NodeList nl = beanEle.getChildNodes();
+		//遍历子节点
 		for (int i = 0; i < nl.getLength(); i++) {
 			Node node = nl.item(i);
-			if (isCandidateElement(node) && nodeNameEquals(node, REPLACED_METHOD_ELEMENT)) {
+			if (isCandidateElement(node) && nodeNameEquals(node, REPLACED_METHOD_ELEMENT)) {//标签名为replace-method
 				Element replacedMethodEle = (Element) node;
-				String name = replacedMethodEle.getAttribute(NAME_ATTRIBUTE);
-				String callback = replacedMethodEle.getAttribute(REPLACER_ATTRIBUTE);
+				String name = replacedMethodEle.getAttribute(NAME_ATTRIBUTE);//name
+				String callback = replacedMethodEle.getAttribute(REPLACER_ATTRIBUTE);//replacer
+				//创建ReplacerOverride对象
 				ReplaceOverride replaceOverride = new ReplaceOverride(name, callback);
-				// Look for arg-type match elements.
+				// Look for arg-type match elements.参见 spring bean中的lookp-method属性 replaced-method属性
+				// http://linql2010-126-com.iteye.com/blog/2018385
 				List<Element> argTypeEles = DomUtils.getChildElementsByTagName(replacedMethodEle, ARG_TYPE_ELEMENT);
 				for (Element argTypeEle : argTypeEles) {
-					String match = argTypeEle.getAttribute(ARG_TYPE_MATCH_ATTRIBUTE);
+					String match = argTypeEle.getAttribute(ARG_TYPE_MATCH_ATTRIBUTE);//arg-type子标签的match属性
 					match = (StringUtils.hasText(match) ? match : DomUtils.getTextValue(argTypeEle));
 					if (StringUtils.hasText(match)) {
 						replaceOverride.addTypeIdentifier(match);
 					}
 				}
 				replaceOverride.setSource(extractSource(replacedMethodEle));
+				//添加到MethodOverrides中
 				overrides.addOverride(replaceOverride);
 			}
 		}
