@@ -1,0 +1,8 @@
+1：首先会加载spring.handlers文件，将其中内容进行一个解析，形成<namespaceUri,类路径>这样的一个映射
+2：然后，根据获取的namespaceUri就可以得到相应的类路径，对其进行初始化得到相应的NamespaceHandler对象
+3：之后，调用该NamespaceHandler的#parser()方法，在该方法中根据标签的localName得到相应的
+BeanDefinitionParser实例对象
+4：最后，调用该BeanDefinitionParser的#parse()方法，该方法定义在AbstractBeanDefinitionParser抽象类，
+核心逻辑封装在其#parseInternal()方法中，该方法返回一个AbstractBeanDefin实例对象，其主要是在
+AbstractBeanDefinitionParser中实现。对于自定义的Parser类，其需要实现#getBeanClass()或者
+getBeanClassName()任一方法，和#doParse(...)方法

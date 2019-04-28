@@ -119,6 +119,17 @@ public class XmlReaderContext extends ReaderContext {
 	 * Return the namespace resolver.
 	 * @see XmlBeanDefinitionReader#setNamespaceHandlerResolver
 	 */
+	/**
+	 * NamespaceHandlerResolver何时初始化?
+	 * 首先是通过XmlBeanDefinitionReader的#createBeanDefinitionDocument()方法获取
+	 * Doucument解析器BeanDefinitionDocumentReader实例
+	 * 然后调用BeanDefinitionDocuReader实例的registerBeanDefinitions(Document doc,
+	 * XmlReaderContext readerContext)方法，进行注册。而该方法提供2个参数一个是Document实例doc，
+	 * 一个是XmlReaderContext实例readerContext
+	 * readerContext实例对象由XmlBeanDefinitionReader的#createReaderContext(Resource resource)
+	 * 方法创建。namespaceHandlerResolver实例对象就是在这个时候创建的
+	 * @return
+	 */
 	public final NamespaceHandlerResolver getNamespaceHandlerResolver() {
 		return this.namespaceHandlerResolver;
 	}
